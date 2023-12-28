@@ -18,12 +18,10 @@ constexpr auto SCREEN_SIZE = gba::geometry::Size{
 
 
 void set_pixel(int x, int y, gba::display::Color const& color) {
-    ((unsigned short*)0x0600'0000)[x + 240 * y] = color.value();
+    gba::display::mode3::vram(x, y) = color.value();
 }
 
 void draw_line_mid() {
-    namespace display = gba::display;
-
     for (auto y = 0; y < 160; ++y) {
         set_pixel(119, y, WHITE);
         set_pixel(120, y, WHITE);
@@ -31,8 +29,6 @@ void draw_line_mid() {
 }
 
 void draw_ball(int x, int y, gba::display::Color const& color) {
-    namespace display = gba::display;
-
     set_pixel(x, y, color);
     set_pixel(x + 1, y, color);
     set_pixel(x, y + 1, color);
@@ -53,11 +49,9 @@ int main() {
     namespace display = gba::display;
     using gba::geometry::Point;
 
-    // display::change_mode(display::Mode::MODE3);
+    display::change_mode(display::Mode::MODE3);
 
-    *((unsigned short*)0x400'0000) = 0x403;
-
-    // display::layer_visible(display::Layer::BG2);
+    display::layer_visible(display::Layer::BG2);
 
     auto ball_location = Point{10, 15};
     auto ball_direction = Point{-2, -2};

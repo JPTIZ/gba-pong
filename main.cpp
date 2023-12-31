@@ -1,15 +1,11 @@
 #include <random>
 
-#include <libgba-cpp/arch/display/video.h>
 #include <libgba-cpp/arch/display/layers.h>
-
+#include <libgba-cpp/arch/display/video.h>
+#include <libgba-cpp/engine/input.h>
 #include <libgba-cpp/utils/geometry.h>
 
-#include <libgba-cpp/engine/input.h>
-
-
 using gba::geometry::Rect;
-
 
 const static auto WHITE = gba::display::Color{31, 31, 31};
 const static auto BLACK = gba::display::Color{0, 0, 0};
@@ -58,8 +54,11 @@ auto fill_rect(
     }
 }
 
-
-auto draw_square(gba::geometry::Point const& point, int size, gba::display::Color const& color) -> void {
+auto draw_square(
+    gba::geometry::Point const& point,
+    int size,
+    gba::display::Color const& color
+) -> void {
     fill_rect({point.x, point.y, size, size}, color);
 }
 
@@ -67,7 +66,10 @@ auto draw_ball(int x, int y, gba::display::Color const& color) -> void {
     draw_square({x, y}, 2, color);
 }
 
-auto draw_player(gba::geometry::Point const& location, gba::display::Color const& color) -> void {
+auto draw_player(
+    gba::geometry::Point const& location,
+    gba::display::Color const& color
+) -> void {
     auto [x, y] = location;
 
     for (auto l = y; l < y + PLAYER_HEIGHT; ++l) {
@@ -91,10 +93,8 @@ auto draw_lives(Player const& player, gba::geometry::Point point) -> void {
 auto collides(Ball const& ball, gba::geometry::Rect const& hitbox) {
     auto [ball_x, ball_y] = ball.location;
     return (
-        ball_x >= hitbox.x
-        and ball_y >= hitbox.y
-        and ball_x <= hitbox.x + hitbox.width
-        and ball_y <= hitbox.y + hitbox.height
+        ball_x >= hitbox.x and ball_y >= hitbox.y and
+        ball_x <= hitbox.x + hitbox.width and ball_y <= hitbox.y + hitbox.height
     );
 }
 
@@ -109,23 +109,29 @@ struct MainScreen {
     };
 
     std::array<Player, 2> players = {
-        Player{ .location = Point{0, 60}, .lives = 3 },
-        Player{ .location = Point{SCREEN_SIZE.width - PLAYER_WIDTH - 1, 60}, .lives = 3 },
+        Player{.location = Point{0, 60}, .lives = 3},
+        Player{
+            .location = Point{SCREEN_SIZE.width - PLAYER_WIDTH - 1, 60},
+            .lives = 3
+        },
     };
 
     Point player2_direction = Point{0, -1};
 
     auto new_match(int seed) -> void {
-        //auto seed = this->seed + gba::display::vcount();
+        // auto seed = this->seed + gba::display::vcount();
         auto ball_hor_dir = seed % 2 == 0 ? -1 : 1;
         auto ball_ver_dir = (seed / 3) % 2 == 0 ? -1 : 1;
         auto ball_h_speed = (seed / 17) % 2 + 1;
         auto ball_v_speed = (seed / 7) % 3 + 1;
 
-        auto ball_dir = Point{ball_hor_dir * ball_h_speed, ball_ver_dir * ball_v_speed};
+        auto ball_dir =
+            Point{ball_hor_dir * ball_h_speed, ball_ver_dir * ball_v_speed};
 
         this->ball = {
-            .location = {SCREEN_SIZE.width / 2, (SCREEN_SIZE.height / 2 + seed) % SCREEN_SIZE.height},
+            .location =
+                {SCREEN_SIZE.width / 2,
+                 (SCREEN_SIZE.height / 2 + seed) % SCREEN_SIZE.height},
             .direction = ball_dir,
         };
     }
@@ -162,7 +168,8 @@ auto game_loop(MainScreen& screen, int seed) -> void {
     }
 
     // Update opponent location
-    if (players[1].location.y == 0 or players[1].location.y == 159 - PLAYER_HEIGHT) {
+    if (players[1].location.y == 0 or
+        players[1].location.y == 159 - PLAYER_HEIGHT) {
         player2_direction.y *= -1;
     }
 
@@ -185,17 +192,22 @@ auto game_loop(MainScreen& screen, int seed) -> void {
 
     auto players_hitbox = std::array{
         Rect{-10, p0.y, 10 + PLAYER_WIDTH, PLAYER_HEIGHT},
-        Rect{SCREEN_SIZE.width - PLAYER_WIDTH, p1.y, 10 + PLAYER_WIDTH, PLAYER_HEIGHT},
+        Rect{
+            SCREEN_SIZE.width - PLAYER_WIDTH,
+            p1.y,
+            10 + PLAYER_WIDTH,
+            PLAYER_HEIGHT
+        },
     };
 
-    if (collides(ball, players_hitbox[0]) or collides(ball, players_hitbox[1])) {
+    if (collides(ball, players_hitbox[0]) or
+        collides(ball, players_hitbox[1])) {
         ball.direction.x *= -1;
     }
 }
 
 int main() {
-    auto rd = std::random_device{};  // a seed source for the random number engine
-    auto gen = std::mt19937{rd()}; // mersenne_twister_engine seeded with rd()
+    auto gen = std::mt19937{std::random_device{}()};
     auto distrib = std::uniform_int_distribution<>{1, 1500};
 
     namespace display = gba::display;
@@ -243,7 +255,13 @@ int main() {
         draw_player(screen.players[0].location, WHITE);
         draw_player(screen.players[1].location, WHITE);
 
-        draw_lives(screen.players[0], Point{SCREEN_SIZE.width / 2 - LIFE_SIZE * (MAX_LIVES + 1), 5});
-        draw_lives(screen.players[1], Point{SCREEN_SIZE.width / 2 + LIFE_SIZE, 5});
+        draw_lives(
+            screen.players[0],
+            Point{SCREEN_SIZE.width / 2 - LIFE_SIZE * (MAX_LIVES + 1), 5}
+        );
+        draw_lives(
+            screen.players[1],
+            Point{SCREEN_SIZE.width / 2 + LIFE_SIZE, 5}
+        );
     }
 }

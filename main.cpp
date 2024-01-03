@@ -22,14 +22,21 @@ constexpr auto SCREEN_SIZE = gba::geometry::Size{
     gba::display::mode3::screen_height,
 };
 
-struct Player {
-    gba::geometry::Point location;
-    int lives;
+struct MovingObject {
+    gba::geometry::Point position;
+    gba::geometry::Point speed;
+
+    auto move() -> void {
+        this->position = {
+            .x = this->position.x + speed.x,
+            .y = this->position.y + speed.y,
+        };
+    }
 };
 
-struct Ball {
-    gba::geometry::Point location;
-    gba::geometry::Point direction;
+struct Player {
+    MovingObject object;
+    int lives;
 };
 
 auto set_pixel(int x, int y, gba::display::Color const& color) -> void {
@@ -67,10 +74,10 @@ auto draw_ball(int x, int y, gba::display::Color const& color) -> void {
 }
 
 auto draw_player(
-    gba::geometry::Point const& location,
+    gba::geometry::Point const& position,
     gba::display::Color const& color
 ) -> void {
-    auto [x, y] = location;
+    auto [x, y] = position;
 
     for (auto l = y; l < y + PLAYER_HEIGHT; ++l) {
         for (auto c = x; c < x + PLAYER_WIDTH; ++c) {
@@ -90,8 +97,8 @@ auto draw_lives(Player const& player, gba::geometry::Point point) -> void {
     }
 }
 
-auto collides(Ball const& ball, gba::geometry::Rect const& hitbox) {
-    auto [ball_x, ball_y] = ball.location;
+auto collides(MovingObject const& ball, gba::geometry::Rect const& hitbox) {
+    auto [ball_x, ball_y] = ball.position;
     return (
         ball_x >= hitbox.x and ball_y >= hitbox.y and
         ball_x <= hitbox.x + hitbox.width and ball_y <= hitbox.y + hitbox.height
@@ -103,23 +110,31 @@ struct MainScreen {
 
     bool game_running = false;
 
-    Ball ball = {
-        .location = Point{10, 15},
-        .direction = Point{-2, -2},
+    MovingObject ball = {
+        .position =
+            {SCREEN_SIZE.width / 2 - 1,
+             (SCREEN_SIZE.height / 2) % SCREEN_SIZE.height},
+        .speed = Point{-2, -2},
     };
 
     std::array<Player, 2> players = {
-        Player{.location = Point{0, 60}, .lives = 3},
         Player{
-            .location = Point{SCREEN_SIZE.width - PLAYER_WIDTH - 1, 60},
+            .object = {
+                .position = Point{0, 60},
+                .speed = {0, 0},
+            },
+            .lives = 3
+        },
+        Player{
+            .object = {
+                .position = Point{SCREEN_SIZE.width - PLAYER_WIDTH - 1, 60},
+                .speed = {0, -2},
+            },
             .lives = 3
         },
     };
 
-    Point player2_direction = Point{0, -1};
-
     auto new_match(int seed) -> void {
-        // auto seed = this->seed + gba::display::vcount();
         auto ball_hor_dir = seed % 2 == 0 ? -1 : 1;
         auto ball_ver_dir = (seed / 3) % 2 == 0 ? -1 : 1;
         auto ball_h_speed = (seed / 17) % 2 + 1;
@@ -129,36 +144,35 @@ struct MainScreen {
             Point{ball_hor_dir * ball_h_speed, ball_ver_dir * ball_v_speed};
 
         this->ball = {
-            .location =
-                {SCREEN_SIZE.width / 2,
+            .position =
+                {SCREEN_SIZE.width / 2 - 1,
                  (SCREEN_SIZE.height / 2 + seed) % SCREEN_SIZE.height},
-            .direction = ball_dir,
+            .speed = ball_dir,
         };
     }
 };
 
 auto game_loop(MainScreen& screen, int seed) -> void {
-    auto& [game_running, ball, players, player2_direction] = screen;
+    auto& [game_running, ball, players] = screen;
 
     // Screen size is 240x160, so value ranges [0..239, 0..159].
     // For the upper index we must consider that the ball starts -2 pixels
     // from it, because its reference is top-left and the ball has a size
     // of 2x2.
-    //
-    if (ball.location.x <= 0 or ball.location.x >= SCREEN_SIZE.width - 3) {
-        ball.direction.x *= -1;
+    if (ball.position.x <= 0 or ball.position.x >= SCREEN_SIZE.width - 3) {
+        ball.speed.x *= -1;
     }
 
-    if (ball.location.y <= 0 or ball.location.y >= SCREEN_SIZE.height - 3) {
-        ball.direction.y *= -1;
+    if (ball.position.y <= 0 or ball.position.y >= SCREEN_SIZE.height - 3) {
+        ball.speed.y *= -1;
     }
-    ball.location.x += ball.direction.x;
-    ball.location.y += ball.direction.y;
+    ball.position.x += ball.speed.x;
+    ball.position.y += ball.speed.y;
 
-    if (ball.location.x >= SCREEN_SIZE.width - 3) {
+    if (ball.position.x >= SCREEN_SIZE.width - 3) {
         players[1].lives -= 1;
         screen.new_match(seed);
-    } else if (ball.location.x == 0) {
+    } else if (ball.position.x == 0) {
         players[0].lives -= 1;
         screen.new_match(seed);
     }
@@ -167,28 +181,32 @@ auto game_loop(MainScreen& screen, int seed) -> void {
         game_running = false;
     }
 
-    // Update opponent location
-    if (players[1].location.y == 0 or
-        players[1].location.y == 159 - PLAYER_HEIGHT) {
-        player2_direction.y *= -1;
+    // Update opponent position
+    if (players[1].object.position.y == 0 or
+        players[1].object.position.y >= 159 - PLAYER_HEIGHT) {
+        players[1].object.speed.y *= -1;
     }
-
-    players[1].location.y += player2_direction.y;
 
     using gba::input::Key;
 
     if (gba::input::pressing(Key::UP)) {
-        players[0].location.y -= 1;
+        players[0].object.speed.y = -2;
     } else if (gba::input::pressing(Key::DOWN)) {
-        players[0].location.y += 1;
+        players[0].object.speed.y = 2;
+    } else {
+        players[0].object.speed.y = 0;
     }
 
     if (gba::input::pressing(Key::A)) {
-        ball.location.x = 15;
-        ball.location.y = 15;
+        ball.position.x = 15;
+        ball.position.y = 15;
     }
 
-    auto [p0, p1] = std::array{players[0].location, players[1].location};
+    for (auto&& player: players) {
+        player.object.move();
+    }
+
+    auto [p0, p1] = std::array{players[0].object.position, players[1].object.position};
 
     auto players_hitbox = std::array{
         Rect{-10, p0.y, 10 + PLAYER_WIDTH, PLAYER_HEIGHT},
@@ -200,9 +218,17 @@ auto game_loop(MainScreen& screen, int seed) -> void {
         },
     };
 
-    if (collides(ball, players_hitbox[0]) or
-        collides(ball, players_hitbox[1])) {
-        ball.direction.x *= -1;
+    auto collides_with_p0 = collides(ball, players_hitbox[0]);
+    auto collides_with_p1 = collides(ball, players_hitbox[1]);
+
+    if (collides_with_p0) {
+        ball.speed.x *= -1;
+        ball.speed.y += players[0].object.speed.y;
+    }
+
+    if (collides_with_p1) {
+        ball.speed.x *= -1;
+        ball.speed.y += players[1].object.speed.y;
     }
 }
 
@@ -224,9 +250,9 @@ int main() {
 
     while (true) {
         // Game logic
-        auto old_ball_location = screen.ball.location;
-        auto old_player_location = screen.players[0].location;
-        auto old_player2_location = screen.players[1].location;
+        auto old_ball_position = screen.ball.position;
+        auto old_player_position = screen.players[0].object.position;
+        auto old_player2_position = screen.players[1].object.position;
 
         if (screen.game_running) {
             game_loop(screen, distrib(gen));
@@ -243,17 +269,17 @@ int main() {
         display::vsync();
 
         //   Clear objects
-        draw_ball(old_ball_location.x, old_ball_location.y, BLACK);
-        draw_player(old_player_location, BLACK);
-        draw_player(old_player2_location, BLACK);
+        draw_ball(old_ball_position.x, old_ball_position.y, BLACK);
+        draw_player(old_player_position, BLACK);
+        draw_player(old_player2_position, BLACK);
 
         //   Draw background
         draw_line_mid();
 
         //   Draw objects
-        draw_ball(screen.ball.location.x, screen.ball.location.y, WHITE);
-        draw_player(screen.players[0].location, WHITE);
-        draw_player(screen.players[1].location, WHITE);
+        draw_ball(screen.ball.position.x, screen.ball.position.y, WHITE);
+        draw_player(screen.players[0].object.position, WHITE);
+        draw_player(screen.players[1].object.position, WHITE);
 
         draw_lives(
             screen.players[0],
